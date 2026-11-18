@@ -32,7 +32,7 @@ Acompanha o preço de produtos, guarda o histórico e avisa a hora certa de comp
 - Outras lojas. Bloqueiam a leitura simples: Magalu, Casas Bahia, Beleza na Web, O Boticário, Sephora. Precisam de outro caminho: Mercado Livre, Shopee, Natura.
 - Procurar automaticamente na Drogasil, Droga Raia, Panvel e Kabum (nelas, por enquanto, só colando o link).
 - Cupons.
-- Login com Google e contas separadas.
+- Login com nome e senha, com contas separadas.
 - Rodar num servidor na internet, para funcionar com o computador desligado e no celular.
 
 ## Para quem for mexer no código

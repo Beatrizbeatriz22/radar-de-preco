@@ -1,5 +1,5 @@
 // Tela do Radar de Preço.
-// Funciona de dois jeitos: "local" (servidor no computador, /api/...) ou "nuvem" (Supabase + login com Google),
+// Funciona de dois jeitos: "local" (servidor no computador, /api/...) ou "nuvem" (Supabase + login com nome e senha),
 // conforme o config.js. O resto da tela não sabe a diferença: tudo passa por `dados`.
 import { montarProduto } from './lib/montar.js';
 import { intervaloAtual } from './lib/analise.js';
@@ -399,12 +399,12 @@ function iniciarApp() {
   setInterval(() => { carregar().catch(() => {}); checarAvisos(); }, 60000);
 }
 
-// Login com Google (só na nuvem)
+// Login (só na nuvem)
 function carregarScript(src) {
   return new Promise((ok, falha) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => falha(new Error('Sem internet?')); document.head.appendChild(s); });
 }
 function mostrarConta(user) {
-  const nome = user.user_metadata?.name || user.email || 'Você';
+  const nome = user.user_metadata?.name || user.email?.split('@')[0] || 'Você';
   const foto = user.user_metadata?.avatar_url;
   $('contaAv').innerHTML = foto ? `<img src="${esc(foto)}" alt="" referrerpolicy="no-referrer">` : esc(nome[0].toUpperCase());
   $('contaNome').textContent = nome.split(' ')[0];
@@ -426,10 +426,33 @@ async function iniciarNuvem() {
   entrar(data.session);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 }
-$('entrarGoogle').addEventListener('click', async () => {
-  const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
-  if (error) { $('loginErro').textContent = error.message; $('loginErro').hidden = false; }
-});
+// Login com nome e senha: o nome vira um "e-mail" interno que nunca recebe mensagem.
+const emailDoNome = nome => {
+  const base = nome.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return base ? `${base}@radardepreco.local` : null;
+};
+async function fazerLogin(criar) {
+  const nome = $('loginNome').value.trim(), senha = $('loginSenha').value;
+  const erro = msg => { $('loginErro').textContent = msg; $('loginErro').hidden = false; };
+  $('loginErro').hidden = true;
+  const email = emailDoNome(nome);
+  if (!email) return erro('Escreva o seu nome.');
+  if (senha.length < 6) return erro('A senha precisa ter pelo menos 6 letras ou números.');
+  $('btnEntrar').disabled = $('btnCriar').disabled = true;
+  try {
+    const { error } = criar
+      ? await sb.auth.signUp({ email, password: senha, options: { data: { name: nome } } })
+      : await sb.auth.signInWithPassword({ email, password: senha });
+    if (!error) return;
+    const m = error.message || '';
+    if (/already registered|already exists/i.test(m)) erro('Esse nome já tem conta. Toque em “Entrar”, ou escolha outro nome.');
+    else if (/invalid login/i.test(m)) erro('Nome ou senha não conferem. Se ainda não tem conta, toque em “Criar minha conta”.');
+    else if (/weak|password/i.test(m)) erro('Essa senha é fraca demais. Tente outra.');
+    else erro(m);
+  } finally { $('btnEntrar').disabled = $('btnCriar').disabled = false; }
+}
+$('formLogin').addEventListener('submit', e => { e.preventDefault(); fazerLogin(false); });
+$('btnCriar').addEventListener('click', () => fazerLogin(true));
 $('btnConta').addEventListener('click', async () => { await sb.auth.signOut(); });
 
 if (NUVEM) iniciarNuvem(); else iniciarApp();
