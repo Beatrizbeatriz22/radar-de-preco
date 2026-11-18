@@ -1,0 +1,14 @@
+{
+  "name": "Radar de Preço",
+  "short_name": "Radar",
+  "description": "Acompanhe preços e saiba a hora certa de comprar.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FBD3E4",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

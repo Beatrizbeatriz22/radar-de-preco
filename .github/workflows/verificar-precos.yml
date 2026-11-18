@@ -1,0 +1,29 @@
+name: Verificar preços
+
+on:
+  schedule:
+    - cron: '17 * * * *'   # de hora em hora (o script só lê as lojas que passaram da hora)
+  workflow_dispatch:        # botão "Run workflow" para rodar na mão
+
+concurrency:
+  group: verificar-precos
+  cancel-in-progress: false
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node scripts/verificar-nuvem.js
+        env:
+          SUPABASE_URL: https://neybxehhfveilnqzjbmw.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VAPID_PUBLICA: BBU9v2dQ0WEEdheiY9YK1Lr64T9zqlVLTDx4qP2gWDaUdhOcs-NXFdhtj7m5H2KesJH1z7VjNZZw-88h_Zu30H4
+          VAPID_PRIVADA: ${{ secrets.VAPID_PRIVADA }}
+          VAPID_CONTATO: https://github.com/Beatrizbeatriz22/radar-de-preco

@@ -1,0 +1,17 @@
+{
+  "name": "radar-de-preco",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Acompanha preços de produtos e avisa a hora certa de comprar.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/servidor.js",
+    "testar-lojas": "node scripts/testar-lojas.js"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

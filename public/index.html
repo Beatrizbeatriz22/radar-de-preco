@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Radar de Preço</title>
+<meta name="theme-color" content="#FBD3E4">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icone.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div>
+      <div>
+        <h1>Radar de Preço</h1>
+        <div class="muted small" id="status">Carregando…</div>
+      </div>
+    </div>
+    <button class="btn" id="btnAvisos" type="button">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 003.4 0"/></svg>
+      <span id="btnAvisosTxt">Ativar avisos</span>
+    </button>
+    <button class="btn" id="btnConta" type="button" hidden><span class="av" id="contaAv"></span><span id="contaNome"></span><span class="muted">· Sair</span></button>
+  </div>
+</header>
+
+<main class="shell" id="shell" data-view="list">
+  <section class="list-pane" aria-label="Produtos acompanhados">
+    <form class="add" id="addForm">
+      <label class="eyebrow" for="addLink">Adicionar produto</label>
+      <input id="addLink" type="url" required placeholder="Cole o link do produto">
+      <div class="add-row">
+        <input id="addAlvo" type="number" min="0" step="0.01" placeholder="Preço que eu pagaria (opcional)" aria-label="Preço que eu pagaria">
+        <button class="btn primary" id="addBtn" type="submit">Adicionar</button>
+      </div>
+      <p class="erro" id="addErro" hidden></p>
+      <p class="muted small" id="lojasLista" style="margin:0"></p>
+    </form>
+    <div class="list-head"><span class="eyebrow" id="count"></span></div>
+    <div class="items" id="items"></div>
+  </section>
+  <section class="detail-pane" id="detail" aria-live="polite"></section>
+</main>
+
+<div class="login" id="login" hidden>
+  <div class="login-card">
+    <div class="brand-mark" aria-hidden="true" style="width:64px;height:64px;margin:0 auto"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div>
+    <h2>Radar de Preço</h2>
+    <p class="muted" style="margin:0">Acompanhe preços e saiba a hora certa de comprar. Cada pessoa tem a própria conta e só vê os próprios produtos.</p>
+    <button class="btn primary" id="entrarGoogle" type="button" style="justify-content:center;padding:12px 16px">Entrar com Google</button>
+    <p class="erro" id="loginErro" hidden></p>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status">
+  <div class="brand-mark" aria-hidden="true" style="width:32px;height:32px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div>
+  <div><div class="t-app">Radar de Preço · agora</div><strong id="toastTitle"></strong><span id="toastBody"></span></div>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js" type="module"></script>
+</body>
+</html>
