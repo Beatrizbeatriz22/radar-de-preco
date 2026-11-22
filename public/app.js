@@ -365,6 +365,8 @@ $('btnAvisos').addEventListener('click', async () => {
       const { error } = await sb.from('inscricoes_push').upsert({ endpoint: j.endpoint, chaves: j.keys }, { onConflict: 'endpoint' });
       falhou(error, 'Não deu para salvar este aparelho.');
       aviso('Avisos ligados neste aparelho', 'Quando o preço baixar, chega uma notificação aqui, mesmo com o app fechado.');
+      // Notificação de teste: mostra na hora que o aparelho recebe avisos do Radar
+      reg.showNotification('Avisos ligados! 🎀', { body: 'É assim que vai chegar quando um produto chegar no seu preço.', icon: 'icone.svg', badge: 'icone.svg' }).catch(() => {});
     } catch (e) { aviso('Não deu para ligar os avisos', e.message); }
   }
   atualizarBotaoAvisos();
