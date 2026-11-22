@@ -125,6 +125,7 @@ ${sessao ? `<div class="card"><p style="margin:0 0 6px;font-size:18px"><b class=
 <p class="m" style="margin:0 0 4px">Pode fechar esta janela: ele continua trabalhando sozinho e liga junto com o computador.</p>
 <p class="m" style="margin:0 0 14px">Última conferência: ${ultimaRodada ? ultimaRodada.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'ainda não'}. Confere a cada ${intervaloAtual() / 36e5} horas; produto novo, em até 2 minutos.</p>
 <div style="display:flex;gap:8px;flex-wrap:wrap"><form method="post" action="/agora"><button>Conferir agora</button></form>
+<form method="post" action="/testar"><button style="background:#fff;border:1px solid #F0CFDD">Testar notificação no celular</button></form>
 <form method="post" action="/sair"><button style="background:#eee">Sair da conta</button></form></div></div>`
   : `<div class="card"><b>Seu perfil</b>
 <p class="m" style="margin:4px 0 12px">Já tem conta no app? Escreva o mesmo nome e senha e toque em <b>Entrar</b>.<br>Primeira vez? Escreva seu nome, crie uma senha e toque em <b>Criar minha conta</b>.</p>
@@ -170,6 +171,14 @@ createServer(async (req, res) => {
     }
     if (req.method === 'POST' && req.url === '/sair') { sessao = null; await writeFile(SESSAO, '{}').catch(() => {}); return voltar(); }
     if (req.method === 'POST' && req.url === '/agora') { rodada(true); return voltar(); }
+    if (req.method === 'POST' && req.url === '/testar') {
+      if (!sessao) return voltar();
+      if (!temPush) return html(pagina('<p class="erro">As notificações deste computador estão desligadas (falta o arquivo de chaves).</p>'));
+      const n = (await nuvem('/rest/v1/inscricoes_push?select=id')).length;
+      if (!n) return html(pagina('<p class="erro">Nenhum celular com avisos ligados nessa conta. No app, toque em “Ativar avisos”.</p>'));
+      await notificar([{ titulo: 'Teste do Radar 🎀', texto: 'Se você está lendo isto, as notificações estão funcionando!' }]);
+      return html(pagina(`<p class="ok">Notificação de teste enviada para ${n} ${n === 1 ? 'aparelho' : 'aparelhos'}. Confira o celular.</p>`));
+    }
     if (req.url === '/' || req.url.startsWith('/?')) return html(pagina());
     res.writeHead(404); res.end();
   } catch (e) { console.error(e); html(pagina(`<p class="erro">${esc(e.message)}</p>`), 500); }
