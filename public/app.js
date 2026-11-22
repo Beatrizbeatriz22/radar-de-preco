@@ -264,13 +264,7 @@ $('detail').addEventListener('click', async e => {
     } catch (err) { aviso('Não deu para conferir', err.message); renderDetalhe(); }
     return;
   }
-  if (alvo.id === 'procurar') {
-    state.buscando = true; renderDetalhe();
-    try { state.sugestoes = { produto: p.id, lista: await dados.sugestoes(p.id) }; }
-    catch (err) { state.sugestoes = null; aviso('Não deu para procurar', err.message); }
-    state.buscando = false; renderDetalhe();
-    return;
-  }
+  if (alvo.id === 'procurar') { procurarSugestoes(p.id); return; }
   if (alvo.dataset.sug !== undefined) {
     const s = state.sugestoes.lista[Number(alvo.dataset.sug)];
     alvo.disabled = true; alvo.textContent = 'Adicionando…';
@@ -314,6 +308,16 @@ $('detail').addEventListener('submit', async e => {
   }
   catch (err) { btn.disabled = false; btn.textContent = 'Adicionar loja'; $('erroLoja').textContent = err.message; $('erroLoja').hidden = false; }
 });
+// Procura o mesmo produto nas outras lojas (sozinho ao adicionar, ou pelo botão)
+async function procurarSugestoes(id, automatico = false) {
+  state.buscando = true; if (state.sel === id) renderDetalhe();
+  try {
+    const lista = await dados.sugestoes(id);
+    if (state.sel === id) state.sugestoes = { produto: id, lista };
+    if (automatico && lista.length) aviso('Achei em outras lojas', `${lista.length} ${lista.length === 1 ? 'opção parecida' : 'opções parecidas'}. Confira e toque em “É esse, adicionar” para comparar.`);
+  } catch (err) { if (!automatico) { state.sugestoes = null; aviso('Não deu para procurar', err.message); } }
+  state.buscando = false; if (state.sel === id) renderDetalhe();
+}
 function trocar(p) { state.produtos = state.produtos.map(x => x.id === p.id ? p : x); renderLista(); renderDetalhe(); }
 
 /* ---------- Adicionar produto ---------- */
@@ -325,7 +329,10 @@ $('addForm').addEventListener('submit', async e => {
     state.produtos.unshift(p); state.sel = p.id; state.sugestoes = null; $('addLink').value = ''; $('addAlvo').value = '';
     renderLista(); renderDetalhe(); $('shell').dataset.view = 'detail';
     if (p.ofertas[0].soComputador) aviso('Produto adicionado', `A ${p.ofertas[0].loja} não deixa a nuvem ler. O nome e o preço aparecem quando o Radar do seu computador ler (em até 2 minutos, com o computador ligado).`);
-    else aviso('Produto adicionado', `${brl(melhor(p)?.atual)} na ${p.ofertas[0].loja}. Use “Procurar em outras lojas” para comparar.`);
+    else {
+      aviso('Produto adicionado', `${brl(melhor(p)?.atual)} na ${p.ofertas[0].loja}. Procurando nas outras lojas…`);
+      procurarSugestoes(p.id, true);
+    }
   } catch (err) { $('addErro').textContent = err.message; $('addErro').hidden = false; }
   finally { btn.disabled = false; btn.textContent = 'Adicionar'; }
 });

@@ -70,7 +70,7 @@ function lojaComFicha(nome, dominio, vendedor = nome) {
 }
 
 // Lojas na plataforma VTEX: têm uma consulta pública de produto que devolve preço e estoque.
-function lojaVtex(nome, dominio) {
+function lojaVtex(nome, dominio, host = `www.${dominio}`) {
   return {
     nome,
     reconhece: u => new URL(u).hostname.endsWith(dominio),
@@ -98,7 +98,7 @@ function lojaVtex(nome, dominio) {
     },
     // Procura na loja pelo código de barras (exato) ou pelo nome (parecido).
     async buscar({ ean, titulo }) {
-      const base = `https://www.${dominio}/api/catalog_system/pub/products/search`;
+      const base = `https://${host}/api/catalog_system/pub/products/search`;
       const tentativas = [];
       if (ean) tentativas.push([`${base}?fq=alternateIds_Ean:${ean}&_from=0&_to=2`, 'mesmo código de barras']);
       tentativas.push([`${base}?ft=${encodeURIComponent(termoDeBusca(titulo))}&_from=0&_to=2`, 'nome parecido']);
@@ -108,7 +108,7 @@ function lojaVtex(nome, dominio) {
         const lista = await r.json().catch(() => []);
         const achados = lista.map(p => {
           const item = p.items?.[0], of = (item?.sellers?.find(s => s.sellerDefault) || item?.sellers?.[0])?.commertialOffer;
-          return { loja: nome, link: `https://www.${dominio}/${p.linkText}/p`, titulo: limpar(p.productName), preco: of?.Price > 0 ? of.Price : null, foto: item?.images?.[0]?.imageUrl || null, ean: item?.ean || null, como };
+          return { loja: nome, link: `https://${host}/${p.linkText}/p`, titulo: limpar(p.productName), preco: of?.Price > 0 ? of.Price : null, foto: item?.images?.[0]?.imageUrl || null, ean: item?.ean || null, como };
         }).filter(a => a.preco);
         if (achados.length) return como === 'mesmo código de barras' ? achados.slice(0, 1) : achados;
       }
@@ -124,6 +124,14 @@ const lojas = {
   paguemenos: lojaVtex('Pague Menos', 'paguemenos.com.br'),
   drogariasaopaulo: lojaVtex('Drogaria São Paulo', 'drogariasaopaulo.com.br'),
   epoca: lojaVtex('Época Cosméticos', 'epocacosmeticos.com.br'),
+  pacheco: lojaVtex('Drogarias Pacheco', 'drogariaspacheco.com.br'),
+  americanas: lojaVtex('Americanas', 'americanas.com.br'),
+  fastshop: lojaVtex('Fast Shop', 'fastshop.com.br', 'site.fastshop.com.br'),
+  cea: lojaVtex('C&A', 'cea.com.br'),
+  riachuelo: lojaComFicha('Riachuelo', 'riachuelo.com.br'),
+  renner: lojaComFicha('Renner', 'lojasrenner.com.br'),
+  mac: lojaComFicha('MAC', 'maccosmetics.com.br'),
+  samsung: { ...lojaComFicha('Samsung', 'samsung.com'), reconhece: u => { const x = new URL(u); return x.hostname.endsWith('samsung.com') && x.pathname.startsWith('/br/'); } },
 
   amazon: {
     nome: 'Amazon',
@@ -218,10 +226,15 @@ export async function procurarEmOutrasLojas({ ean, titulo }, lojasJa = []) {
 
 const palavras = t => new Set(t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/(\d)\s+(ml|g|mg|kg|l)\b/g, '$1$2').split(/[^a-z0-9]+/).filter(w => w.length >= 2 && !['de', 'da', 'do', 'com', 'para', 'sem', 'e'].includes(w)));
-// Parte das palavras do nome que aparecem nos dois (0 a 1)
+// Palavras que aparecem em todo produto do tipo e não dizem nada sobre a marca/modelo
+const GENERICAS = new Set(['protetor', 'solar', 'corporal', 'facial', 'fps', 'kit', 'ml', 'gel', 'creme', 'loção', 'locao', 'hidratante', 'shampoo', 'condicionador', 'perfume', 'edp', 'edt', 'eau', 'parfum', 'toilette', 'feminino', 'masculino', 'unissex', 'cor', 'preto', 'branco', 'tamanho', 'un', 'unidade', 'unidades', 'novo', 'original', 'oferta', 'celular', 'smartphone', 'tenis', 'camiseta', 'calca', 'vestido', 'base', 'batom', 'oleo', 'serum', 'sabonete', 'liquido', 'em', 'no', 'na', 'os', 'as', 'por', 'aerossol', 'aerosol', 'spray', 'rosto', 'corpo', 'bisnaga', 'frasco', 'refil', 'pote', 'tubo', 'ativo']);
+const marcantes = t => [...palavras(t)].filter(w => !GENERICAS.has(w) && !/^\d/.test(w));
+// Parte das palavras do nome que aparecem nos dois (0 a 1). Se a marca/modelo não bate, é 0.
 export function semelhanca(a, b) {
   const A = palavras(a), B = palavras(b);
   if (!A.size || !B.size) return 0;
+  const ma = marcantes(a).slice(0, 3);
+  if (ma.length && ma.filter(w => B.has(w)).length < Math.min(2, ma.length)) return 0;
   let comum = 0; for (const w of A) if (B.has(w)) comum++;
   return comum / Math.min(A.size, B.size);
 }
