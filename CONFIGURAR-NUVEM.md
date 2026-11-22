@@ -30,3 +30,12 @@ Não mande essas chaves no chat.
 - Depois de instalar, toque em **Ativar avisos**.
 
 Os preços são conferidos de hora em hora pelo GitHub (aba **Actions** → *Verificar preços*), mesmo com o computador desligado.
+
+## Lojas que bloqueiam a nuvem (Amazon, Panvel, Kabum)
+
+Essas lojas recusam leituras vindas de servidores. Quem lê é o **Radar no computador** (a "ponte"):
+
+- Dê dois cliques em `Radar no computador.bat`. Abre a tela http://localhost:3001.
+- Entre uma vez com o mesmo nome e senha do app. Depois disso ela trabalha sozinha.
+- Com o computador ligado, ela confere essas lojas no mesmo ritmo da nuvem e lê produtos novos em até 2 minutos.
+- Com o computador desligado, essas lojas ficam paradas no último preço; as outras continuam normais.
