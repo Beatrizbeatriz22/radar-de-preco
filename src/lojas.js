@@ -235,6 +235,9 @@ export function semelhanca(a, b) {
   if (!A.size || !B.size) return 0;
   const ma = marcantes(a).slice(0, 3);
   if (ma.length && ma.filter(w => B.has(w)).length < Math.min(2, ma.length)) return 0;
+  // Código de modelo (A16, S26, X940...): se o original tem, o outro precisa ter também
+  const modelos = [...A].filter(w => /^[a-z]{1,4}\d{1,4}[a-z]?$/.test(w) && !/^(fps|spf|ml|mg|kg|gb|tb)/.test(w));
+  if (modelos.length && !modelos.some(w => B.has(w))) return 0;
   let comum = 0; for (const w of A) if (B.has(w)) comum++;
   return comum / Math.min(A.size, B.size);
 }
