@@ -116,7 +116,10 @@ input{display:block;width:100%;box-sizing:border-box;padding:10px;margin:6px 0 1
 button{background:#F7A8C8;border:0;border-radius:999px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}
 ul{padding-left:18px}li{margin:4px 0}li span{color:#8F7683;font-size:12px}.m{color:#8F7683}.erro{color:#b3261e}.ok{color:#1b7a3d}</style></head><body>
 <h1>Radar de Preço · computador</h1>
-<p class="m">Este programa lê as lojas que não deixam a nuvem ler (Amazon, Panvel, Kabum...) enquanto o computador está ligado, e manda os preços para o seu app.</p>
+<div class="card" style="background:#FFF4F8"><b>O app fica aqui:</b><br>
+<a href="https://beatrizbeatriz22.github.io/radar-de-preco/" target="_blank" style="font-size:17px;color:#B0306A;word-break:break-all">https://beatrizbeatriz22.github.io/radar-de-preco/</a><br>
+<span class="m">É lá que você adiciona os produtos e vê os preços. Esse é o link para abrir no celular e mandar para as pessoas.</span></div>
+<p class="m">Esta tela é só um ajudante: ele lê as lojas que não deixam a nuvem ler (Amazon, Panvel, Kabum...) enquanto o computador está ligado. Você não precisa mexer aqui.</p>
 ${msg}
 ${sessao ? `<div class="card"><p style="margin:0 0 6px;font-size:18px"><b class="ok">✓ Tudo certo!</b> Funcionando na conta <b>${esc(sessao.nome)}</b>.</p>
 <p class="m" style="margin:0 0 4px">Pode fechar esta janela: ele continua trabalhando sozinho e liga junto com o computador.</p>
