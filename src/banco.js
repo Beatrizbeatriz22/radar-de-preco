@@ -74,3 +74,6 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS ofertas_produto ON ofertas (produto_id);
   PRAGMA foreign_keys = ON;
 `);
+
+// Faixa de preço: "de" (opcional) além do máximo (preco_alvo)
+if (!db.prepare("SELECT 1 FROM pragma_table_info('produtos') WHERE name = 'preco_min'").get()) db.exec('ALTER TABLE produtos ADD COLUMN preco_min REAL');

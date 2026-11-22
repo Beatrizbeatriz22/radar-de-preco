@@ -108,8 +108,9 @@ const rotas = [
   ['PATCH', /^\/api\/produtos\/(\d+)$/, async (req, [, id]) => {
     const p = buscar(Number(id));
     if (!p) return [404, { erro: 'Produto não encontrado.' }];
-    const { precoAlvo, titulo } = await corpo(req);
+    const { precoAlvo, precoMin, titulo } = await corpo(req);
     if (precoAlvo !== undefined) db.prepare('UPDATE produtos SET preco_alvo = ? WHERE id = ?').run(precoAlvo ? Number(precoAlvo) : null, p.id);
+    if (precoMin !== undefined) db.prepare('UPDATE produtos SET preco_min = ? WHERE id = ?').run(precoMin ? Number(precoMin) : null, p.id);
     if (titulo) db.prepare('UPDATE produtos SET titulo = ? WHERE id = ?').run(String(titulo).slice(0, 200), p.id);
     return [200, montar(buscar(p.id))];
   }],

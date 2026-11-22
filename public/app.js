@@ -2,7 +2,7 @@
 // Funciona de dois jeitos: "local" (servidor no computador, /api/...) ou "nuvem" (Supabase + login com nome e senha),
 // conforme o config.js. O resto da tela não sabe a diferença: tudo passa por `dados`.
 import { montarProduto } from './lib/montar.js';
-import { intervaloAtual } from './lib/analise.js';
+import { intervaloAtual, textoFaixa } from './lib/analise.js';
 import { LOJAS, LOJAS_COM_BUSCA } from './lib/lojas-info.js';
 
 const CFG = window.RADAR_CONFIG || {};
@@ -31,7 +31,7 @@ const dadosLocal = {
   tirarLoja: ofertaId => api('DELETE', `/api/ofertas/${ofertaId}`),
   sugestoes: id => api('GET', `/api/produtos/${id}/sugestoes`),
   atualizar: id => api('POST', `/api/produtos/${id}/atualizar`),
-  salvarAlvo: (id, v) => api('PATCH', `/api/produtos/${id}`, { precoAlvo: v }),
+  salvarAlvo: (id, max, min) => api('PATCH', `/api/produtos/${id}`, { precoAlvo: max, precoMin: min }),
   remover: id => api('DELETE', `/api/produtos/${id}`),
   avisos: depois => api('GET', `/api/avisos?depois=${depois}`),
 };
@@ -67,7 +67,7 @@ const dadosNuvem = {
   },
   sugestoes: id => funcao('sugestoes', { produtoId: id }),
   atualizar: async id => { const r = await funcao('atualizarProduto', { produtoId: id }); return { produto: await umProduto(id), erros: r.erros }; },
-  salvarAlvo: async (id, v) => { const { error } = await sb.from('produtos').update({ preco_alvo: v ? Number(v) : null }).eq('id', id); falhou(error, 'Não deu para salvar.'); return umProduto(id); },
+  salvarAlvo: async (id, max, min) => { const { error } = await sb.from('produtos').update({ preco_alvo: max ? Number(max) : null, preco_min: min ? Number(min) : null }).eq('id', id); falhou(error, 'Não deu para salvar.'); return umProduto(id); },
   remover: async id => { const { error } = await sb.from('produtos').delete().eq('id', id); falhou(error, 'Não deu para remover.'); },
   avisos: async depois => { const { data, error } = await sb.from('avisos').select('*').gt('id', depois).order('id', { ascending: false }).limit(20); falhou(error); return data; },
 };
@@ -175,9 +175,14 @@ function renderDetalhe() {
       <div class="chart-wrap" id="chart"></div>
       <div class="legend">${p.ofertas.map(o => `<span><span class="sw" style="background:${cor(o)}"></span>${esc(o.loja)}</span>`).join('')}</div></section>
 
-    <section><div class="section-h"><h3>Quando me avisar</h3></div>
-      <div class="field"><label for="alvo">Preço que eu pagaria</label><input id="alvo" type="number" min="0" step="0.01" value="${p.precoAlvo ?? ''}" placeholder="R$"><button class="btn" id="salvarAlvo" type="button">Salvar</button></div>
-      <p class="muted small" style="margin:8px 0 0">O aviso vale para qualquer loja deste produto. Também avisamos quando o melhor preço cair 10% ou mais, e quando bater o menor preço já visto (depois de 7 dias de histórico).</p>
+    <section><div class="section-h"><h3>Quanto quero pagar</h3></div>
+      <div class="faixa">
+        <label>De <input id="alvoMin" type="number" inputmode="decimal" min="0" step="0.01" value="${p.precoMin ?? ''}" placeholder="R$ (opcional)"></label>
+        <label>até <input id="alvo" type="number" inputmode="decimal" min="0" step="0.01" value="${p.precoAlvo ?? ''}" placeholder="R$ máximo"></label>
+        <button class="btn primary" id="salvarAlvo" type="button">Salvar</button>
+      </div>
+      ${p.precoAlvo && a.atual != null ? `<p class="small" style="margin:10px 0 0">${a.faltam > 0 ? `Faltam <strong>${brl(a.faltam)}</strong> para chegar na sua faixa (${esc(textoFaixa(p.precoMin, p.precoAlvo))}).` : `<strong>Já está na sua faixa!</strong>`}</p>` : ''}
+      <p class="muted small" style="margin:8px 0 0">Quando qualquer loja chegar no valor máximo ou menos, chega uma notificação: “Chegou no preço, momento de comprar”. Também avisamos quando o preço cair 10% ou mais, e quando bater o menor preço já visto.</p>
     </section>
     <div class="actions"><button class="btn danger" id="remover" type="button">Parar de acompanhar</button></div>
   </article>`;
@@ -281,7 +286,11 @@ $('detail').addEventListener('click', async e => {
     return;
   }
   if (alvo.id === 'salvarAlvo') {
-    try { trocar(await dados.salvarAlvo(p.id, $('alvo').value || null)); aviso('Preço-alvo salvo', $('alvo').value ? `Avisamos quando qualquer loja chegar em ${brl($('alvo').value)}.` : 'Sem preço-alvo para esse produto.'); }
+    let max = Number($('alvo').value) || null, min = Number($('alvoMin').value) || null;
+    if (!max && min) { max = min; min = null; } // só preencheu o "de": vira o máximo
+    if (min && max && min > max) [min, max] = [max, min];
+    if (min === max) min = null;
+    try { trocar(await dados.salvarAlvo(p.id, max, min)); aviso('Faixa salva', max ? `Avisamos quando qualquer loja chegar em ${textoFaixa(min, max)}.` : 'Sem faixa de preço para esse produto.'); }
     catch (err) { aviso('Não deu para salvar', err.message); }
     return;
   }

@@ -5,7 +5,10 @@ const DIA = 864e5;
 const media = a => a.reduce((s, x) => s + x, 0) / a.length;
 const mediana = a => { const b = [...a].sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
 
-export function analisar(historico, precoAlvo) {
+// Faixa de preço que a pessoa quer pagar: "de" (opcional) "até" (o máximo).
+export const textoFaixa = (min, max) => (min && max ? `${brl(min)} a ${brl(max)}` : `até ${brl(max)}`);
+
+export function analisar(historico, precoAlvo, precoMin = null) {
   const validos = historico.filter(h => h.preco != null && h.disponivel);
   if (!validos.length) return { tipo: 'info', curto: 'Sem preço', titulo: 'Ainda não temos preço para esse produto', texto: 'Pode estar indisponível na loja. O app continua conferindo.' };
 
@@ -24,8 +27,12 @@ export function analisar(historico, precoAlvo) {
     leituras: validos.length,
   };
 
+  if (precoAlvo) res.faltam = atual > precoAlvo ? atual - precoAlvo : 0;
+  if (precoMin && precoAlvo && atual <= precoMin) {
+    return { ...res, tipo: 'bom', curto: 'Abaixo da faixa', titulo: 'Hora de comprar: abaixo do que você queria pagar!', texto: `Está em ${brl(atual)}. A sua faixa era ${textoFaixa(precoMin, precoAlvo)}.` };
+  }
   if (precoAlvo && atual <= precoAlvo) {
-    return { ...res, tipo: 'bom', curto: 'No seu preço', titulo: 'Chegou no preço que você queria pagar', texto: `Está em ${brl(atual)}, e seu preço-alvo é ${brl(precoAlvo)}.` };
+    return { ...res, tipo: 'bom', curto: 'No seu preço', titulo: 'Chegou no seu preço: momento de comprar!', texto: `Está em ${brl(atual)}, dentro da sua faixa (${textoFaixa(precoMin, precoAlvo)}).` };
   }
   if (dias < 3) {
     return { ...res, tipo: 'info', curto: 'Juntando dados', titulo: 'Ainda estamos juntando o histórico', texto: `Começamos a acompanhar há pouco tempo (${validos.length} ${validos.length === 1 ? 'leitura' : 'leituras'}). Em alguns dias já dá para dizer se o preço está bom.` };
@@ -52,8 +59,11 @@ export function avisosNovos(produto, historico, novo) {
   const anterior = validos.length ? validos[validos.length - 1].preco : null;
   if (novo.preco == null || !novo.disponivel) return [];
   const lista = [];
-  if (produto.preco_alvo && novo.preco <= produto.preco_alvo && (anterior == null || anterior > produto.preco_alvo)) {
-    lista.push({ titulo: `${curto(produto.titulo)} chegou no seu preço`, texto: `${brl(novo.preco)} na ${novo.loja || produto.loja}. Seu preço-alvo era ${brl(produto.preco_alvo)}.` });
+  const max = produto.preco_alvo, min = produto.preco_min && max && produto.preco_min < max ? produto.preco_min : null;
+  if (min && novo.preco <= min && (anterior == null || anterior > min)) {
+    lista.push({ titulo: `Hora de comprar: ${curto(produto.titulo)}`, texto: `Caiu para ${brl(novo.preco)} na ${novo.loja || produto.loja}, abaixo da sua faixa (${textoFaixa(min, max)}).` });
+  } else if (max && novo.preco <= max && (anterior == null || anterior > max)) {
+    lista.push({ titulo: `Chegou no preço! ${curto(produto.titulo)}`, texto: `${brl(novo.preco)} na ${novo.loja || produto.loja}, dentro da sua faixa (${textoFaixa(min, max)}). Momento de comprar!` });
   }
   if (anterior != null && novo.preco <= anterior * 0.9) {
     lista.push({ titulo: `${curto(produto.titulo)} caiu ${Math.round((1 - novo.preco / anterior) * 100)}%`, texto: `De ${brl(anterior)} para ${brl(novo.preco)} na ${novo.loja || produto.loja}.` });
