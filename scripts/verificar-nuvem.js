@@ -6,9 +6,14 @@ import { criarBanco, verificarOferta } from '../src/nuvem.js';
 import { intervaloAtual } from '../public/lib/analise.js';
 
 const env = n => { const v = process.env[n]; if (!v) { console.error(`Falta a variável ${n}.`); process.exit(1); } return v; };
-const db = criarBanco(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'));
-const temPush = process.env.VAPID_PUBLICA && process.env.VAPID_PRIVADA;
-if (temPush) webpush.setVapidDetails(process.env.VAPID_CONTATO || 'https://github.com', process.env.VAPID_PUBLICA, process.env.VAPID_PRIVADA);
+// Chaves coladas à mão podem vir com espaços, quebras de linha ou texto a mais: pega só a chave em si.
+const chave = (v, padrao) => (String(v || '').match(padrao) || [String(v || '').replace(/\s+/g, '')])[0];
+const chaveBanco = chave(env('SUPABASE_SERVICE_ROLE_KEY'), /sb_secret_[A-Za-z0-9_-]+|eyJ[A-Za-z0-9._-]+/);
+if (/[^!-~]/.test(chaveBanco)) { console.error('A chave SUPABASE_SERVICE_ROLE_KEY tem caracteres estranhos (talvez bolinhas •). Cole de novo a chave revelada.'); process.exit(1); }
+const db = criarBanco(env('SUPABASE_URL'), chaveBanco);
+const vapidPrivada = chave(process.env.VAPID_PRIVADA, /[A-Za-z0-9_-]{40,}/);
+const temPush = process.env.VAPID_PUBLICA && vapidPrivada;
+if (temPush) webpush.setVapidDetails(process.env.VAPID_CONTATO || 'https://github.com', process.env.VAPID_PUBLICA, vapidPrivada);
 
 const LIMITE_MS = 20 * 60 * 1000; // não passa de 20 min por rodada
 const inicio = Date.now();
