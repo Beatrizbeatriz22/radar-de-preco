@@ -108,7 +108,6 @@ async function rodada(todas = false) {
 // ---- Tela simples (só neste computador) ----
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function pagina(msg = '') {
-  const lista = registro.map(r => `<li><span>${r.quando.toLocaleString('pt-BR')}</span> ${esc(r.txt)}</li>`).join('') || '<li class="m">Nada ainda.</li>';
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Radar · ponte</title>
 <meta http-equiv="refresh" content="${sessao ? 30 : 3600}">
 <style>body{font-family:system-ui,sans-serif;background:#fff;color:#3A2A33;max-width:560px;margin:32px auto;padding:0 16px}
@@ -123,9 +122,10 @@ ${sessao ? `<div class="card"><b class="ok">Ligado</b> na conta <b>${esc(sessao.
 <span class="m">Última conferência: ${ultimaRodada ? ultimaRodada.toLocaleString('pt-BR') : 'ainda não'} · confere de ${intervaloAtual() / 36e5} em ${intervaloAtual() / 36e5} h (produtos novos em até 2 min)</span>
 <form method="post" action="/agora" style="margin-top:12px;display:inline"><button>Conferir agora</button></form>
 <form method="post" action="/sair" style="display:inline;margin-left:8px"><button style="background:#eee">Sair</button></form></div>`
-  : `<div class="card"><b>Entre com o mesmo nome e senha do app</b> (só uma vez):
-<form method="post" action="/entrar"><input name="nome" placeholder="Seu nome" required autocomplete="username"><input name="senha" type="password" placeholder="Senha" required autocomplete="current-password"><button>Entrar</button></form></div>`}
-<div class="card"><b>O que aconteceu</b><ul>${lista}</ul></div>
+  : `<div class="card"><b>Seu perfil</b>
+<p class="m" style="margin:4px 0 12px">Já tem conta no app? Escreva o mesmo nome e senha e toque em <b>Entrar</b>.<br>Primeira vez? Escreva seu nome, crie uma senha e toque em <b>Criar minha conta</b>.</p>
+<form method="post" action="/entrar"><input name="nome" placeholder="Seu nome" required maxlength="40" autocomplete="username"><input name="senha" type="password" placeholder="Senha (mínimo 6 letras ou números)" required minlength="6" autocomplete="current-password">
+<button name="acao" value="entrar">Entrar</button> <button name="acao" value="criar" style="background:#fff;border:1px solid #F0CFDD">Criar minha conta</button></form></div>`}
 ${temPush ? '' : '<p class="m">Notificações pelo computador: desligadas (não achei dados/chaves-avisos.txt).</p>'}
 </body></html>`;
 }
@@ -139,9 +139,22 @@ createServer(async (req, res) => {
   const voltar = () => { res.writeHead(303, { Location: '/' }); res.end(); };
   try {
     if (req.method === 'POST' && req.url === '/entrar') {
-      const { nome = '', senha = '' } = await corpoForm(req);
+      const { nome = '', senha = '', acao = 'entrar' } = await corpoForm(req);
       const email = emailDoNome(nome);
       if (!email) return html(pagina('<p class="erro">Escreva o seu nome.</p>'));
+      if (senha.length < 6) return html(pagina('<p class="erro">A senha precisa ter pelo menos 6 letras ou números.</p>'));
+      if (acao === 'criar') {
+        const r = await fetch(`${URL_NUVEM}/auth/v1/signup`, { method: 'POST', headers: { apikey: CHAVE_PUBLICA, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: senha, data: { name: nome.trim() } }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.access_token) {
+          const m = j.msg || j.error_description || '';
+          return html(pagina(`<p class="erro">${/already|exists/i.test(m) ? 'Esse nome já tem conta. Toque em “Entrar”, ou escolha outro nome.' : /weak|password/i.test(m) ? 'Essa senha é fraca demais. Tente outra.' : 'Não deu para criar a conta. Tente de novo.'}</p>`));
+        }
+        sessao = { nome: nome.trim(), refresh: j.refresh_token, acesso: j.access_token, expira: Date.now() + j.expires_in * 1000 };
+        await salvarSessao();
+        anotar(`Conta criada: ${sessao.nome}.`);
+        return voltar();
+      }
       try {
         const j = await auth('password', { email, password: senha });
         sessao = { nome: nome.trim(), refresh: j.refresh_token, acesso: j.access_token, expira: Date.now() + j.expires_in * 1000 };
