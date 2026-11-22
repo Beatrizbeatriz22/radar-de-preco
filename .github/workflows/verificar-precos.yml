@@ -20,10 +20,19 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # Busca a chave do banco direto no Supabase (usando o token de acesso), sem precisar colar à mão.
+      - name: Pegar a chave do banco
+        run: |
+          TOKEN=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | grep -o 'sbp_[A-Za-z0-9_]*' | head -1)
+          KEY=$(curl -sf -H "Authorization: Bearer $TOKEN" "https://api.supabase.com/v1/projects/neybxehhfveilnqzjbmw/api-keys?reveal=true"             | node -e "let t='';process.stdin.on('data',d=>t+=d).on('end',()=>{const l=JSON.parse(t);const k=l.find(x=>x.type==='secret'&&x.api_key)||l.find(x=>x.name==='service_role');process.stdout.write(k?k.api_key:'')})")
+          if [ -z "$KEY" ]; then echo "Não consegui pegar a chave do banco com o token."; exit 1; fi
+          echo "::add-mask::$KEY"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$KEY" >> "$GITHUB_ENV"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       - run: node scripts/verificar-nuvem.js
         env:
           SUPABASE_URL: https://neybxehhfveilnqzjbmw.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           VAPID_PUBLICA: BBU9v2dQ0WEEdheiY9YK1Lr64T9zqlVLTDx4qP2gWDaUdhOcs-NXFdhtj7m5H2KesJH1z7VjNZZw-88h_Zu30H4
           VAPID_PRIVADA: ${{ secrets.VAPID_PRIVADA }}
           VAPID_CONTATO: https://github.com/Beatrizbeatriz22/radar-de-preco
