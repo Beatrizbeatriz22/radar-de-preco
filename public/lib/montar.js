@@ -17,7 +17,7 @@ export function montarProduto(p, ofertas) {
     const ult = historico[historico.length - 1];
     return {
       id: o.id, link: o.link, loja: o.loja, vendedor: o.vendedor, titulo: o.titulo,
-      ultimaVerificacao: o.ultima_verificacao, ultimoErro: o.ultimo_erro,
+      ultimaVerificacao: o.ultima_verificacao, ultimoErro: o.ultimo_erro, soComputador: !!o.so_computador,
       atual: ult && ult.disponivel ? ult.preco : null, pix: ult?.pix ?? null, disponivel: !!ult?.disponivel,
       menor: historico.filter(h => h.disponivel && h.preco != null).reduce((m, h) => (m == null || h.preco < m ? h.preco : m), null),
       confianca: confianca(o),

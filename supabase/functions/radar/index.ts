@@ -3,7 +3,7 @@
 // adicionar produto, adicionar loja, procurar em outras lojas e atualizar agora.
 // Os arquivos em ../_shared são copiados de src/ por scripts/preparar-funcoes.js antes de publicar.
 // @ts-nocheck
-import { criarBanco, adicionarProduto, adicionarLoja, sugestoes, atualizarProduto } from '../_shared/nuvem.js';
+import { criarBanco, adicionarProduto, adicionarLoja, sugestoes, atualizarProduto, registrarLeituraComputador, erroLeituraComputador } from '../_shared/nuvem.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -12,13 +12,13 @@ const CORS = {
 };
 const resposta = (status, dado) => new Response(JSON.stringify(dado), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
-const acoes = { adicionarProduto, adicionarLoja, sugestoes, atualizarProduto };
+const acoes = { adicionarProduto, adicionarLoja, sugestoes, atualizarProduto, registrarLeituraComputador, erroLeituraComputador };
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
     const url = Deno.env.get('SUPABASE_URL');
-    // Quem está pedindo: confere o token do login com Google
+    // Quem está pedindo: confere o token do login
     const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
     const u = await fetch(`${url}/auth/v1/user`, { headers: { apikey: Deno.env.get('SUPABASE_ANON_KEY'), Authorization: `Bearer ${token}` } });
     if (!u.ok) return resposta(401, { erro: 'Sua sessão expirou. Entre de novo.' });

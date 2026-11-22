@@ -155,7 +155,8 @@ function renderDetalhe() {
           <tr class="${o.id === p.melhorOferta && p.ofertas.length > 1 ? 'best' : ''}">
             <td><span class="sw" style="background:${cor(o)}"></span><strong>${esc(o.loja)}</strong>${o.id === p.melhorOferta && p.ofertas.length > 1 ? ' <span class="pill bom">Melhor preço</span>' : ''}
               <div class="muted small">${esc(o.titulo || '')}</div>
-              ${o.ultimoErro ? `<div class="erro-mini">Última leitura falhou: ${esc(o.ultimoErro)}</div>` : ''}</td>
+              ${o.soComputador ? `<div class="muted small">💻 ${o.historico.length ? 'Preço lido pelo seu computador' : 'Esperando o Radar do computador ler esta loja'}</div>` : ''}
+              ${o.ultimoErro && !(o.soComputador && /não deixa a nuvem/.test(o.ultimoErro)) ? `<div class="erro-mini">Última leitura falhou: ${esc(o.ultimoErro)}</div>` : ''}</td>
             <td><span class="pill ${o.confianca.nivel}"><span class="dot"></span>${o.confianca.nivel === 'bom' ? 'Loja oficial' : 'Atenção'}</span><div class="muted small" style="max-width:30ch">${esc(o.confianca.texto)}</div></td>
             <td class="price muted">${brl(o.menor)}</td>
             <td class="price">${o.disponivel ? brl(o.atual) : '<span class="muted">indisponível</span>'}${o.pix && o.pix < o.atual ? `<div class="muted small">${brl(o.pix)} no Pix</div>` : ''}</td>
@@ -297,7 +298,11 @@ $('detail').addEventListener('submit', async e => {
   e.preventDefault();
   const p = state.produtos.find(x => x.id === state.sel), btn = $('btnLoja');
   btn.disabled = true; btn.textContent = 'Lendo a página…'; $('erroLoja').hidden = true;
-  try { const novo = await dados.adicionarLoja(p.id, $('linkLoja').value); trocar(novo); aviso('Loja adicionada', `Agora comparando ${novo.ofertas.length} lojas.`); }
+  try {
+    const novo = await dados.adicionarLoja(p.id, $('linkLoja').value); trocar(novo);
+    const ultima = novo.ofertas[novo.ofertas.length - 1];
+    aviso('Loja adicionada', ultima?.soComputador ? `A ${ultima.loja} só deixa o seu computador ler. O preço aparece quando o Radar do computador ler.` : `Agora comparando ${novo.ofertas.length} lojas.`);
+  }
   catch (err) { btn.disabled = false; btn.textContent = 'Adicionar loja'; $('erroLoja').textContent = err.message; $('erroLoja').hidden = false; }
 });
 function trocar(p) { state.produtos = state.produtos.map(x => x.id === p.id ? p : x); renderLista(); renderDetalhe(); }
@@ -310,7 +315,8 @@ $('addForm').addEventListener('submit', async e => {
     const p = await dados.adicionarProduto($('addLink').value, $('addAlvo').value || null);
     state.produtos.unshift(p); state.sel = p.id; state.sugestoes = null; $('addLink').value = ''; $('addAlvo').value = '';
     renderLista(); renderDetalhe(); $('shell').dataset.view = 'detail';
-    aviso('Produto adicionado', `${brl(melhor(p)?.atual)} na ${p.ofertas[0].loja}. Use “Procurar em outras lojas” para comparar.`);
+    if (p.ofertas[0].soComputador) aviso('Produto adicionado', `A ${p.ofertas[0].loja} não deixa a nuvem ler. O nome e o preço aparecem quando o Radar do seu computador ler (em até 2 minutos, com o computador ligado).`);
+    else aviso('Produto adicionado', `${brl(melhor(p)?.atual)} na ${p.ofertas[0].loja}. Use “Procurar em outras lojas” para comparar.`);
   } catch (err) { $('addErro').textContent = err.message; $('addErro').hidden = false; }
   finally { btn.disabled = false; btn.textContent = 'Adicionar'; }
 });

@@ -20,7 +20,7 @@ const inicio = Date.now();
 const espera = ms => new Promise(r => setTimeout(r, ms));
 
 const limite = new Date(Date.now() - intervaloAtual() + 5 * 60 * 1000).toISOString(); // 5 min de folga
-const pendentes = await db.ler('ofertas', `or=(ultima_verificacao.is.null,ultima_verificacao.lt.${limite})&order=ultima_verificacao.asc.nullsfirst&limit=300`);
+const pendentes = await db.ler('ofertas', `so_computador=is.false&or=(ultima_verificacao.is.null,ultima_verificacao.lt.${limite})&order=ultima_verificacao.asc.nullsfirst&limit=300`);
 console.log(`${pendentes.length} leituras para fazer (intervalo: ${intervaloAtual() / 36e5} h)`);
 
 let ok = 0, falhas = 0, avisos = [];
