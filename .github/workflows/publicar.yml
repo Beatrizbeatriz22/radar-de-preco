@@ -47,6 +47,6 @@ jobs:
           TOKEN=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | grep -o 'sbp_[A-Za-z0-9_]*' | head -1)
           if [ -z "$TOKEN" ]; then echo "O segredo SUPABASE_ACCESS_TOKEN não tem um token sbp_... válido."; exit 1; fi
           export SUPABASE_ACCESS_TOKEN="$TOKEN"
-          supabase functions deploy radar --project-ref neybxehhfveilnqzjbmw --no-verify-jwt
+          supabase functions deploy radar --project-ref neybxehhfveilnqzjbmw --no-verify-jwt --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
