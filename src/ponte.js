@@ -118,10 +118,11 @@ ul{padding-left:18px}li{margin:4px 0}li span{color:#8F7683;font-size:12px}.m{col
 <h1>Radar de Preço · computador</h1>
 <p class="m">Este programa lê as lojas que não deixam a nuvem ler (Amazon, Panvel, Kabum...) enquanto o computador está ligado, e manda os preços para o seu app.</p>
 ${msg}
-${sessao ? `<div class="card"><b class="ok">Ligado</b> na conta <b>${esc(sessao.nome)}</b>.<br>
-<span class="m">Última conferência: ${ultimaRodada ? ultimaRodada.toLocaleString('pt-BR') : 'ainda não'} · confere de ${intervaloAtual() / 36e5} em ${intervaloAtual() / 36e5} h (produtos novos em até 2 min)</span>
-<form method="post" action="/agora" style="margin-top:12px;display:inline"><button>Conferir agora</button></form>
-<form method="post" action="/sair" style="display:inline;margin-left:8px"><button style="background:#eee">Sair</button></form></div>`
+${sessao ? `<div class="card"><p style="margin:0 0 6px;font-size:18px"><b class="ok">✓ Tudo certo!</b> Funcionando na conta <b>${esc(sessao.nome)}</b>.</p>
+<p class="m" style="margin:0 0 4px">Pode fechar esta janela: ele continua trabalhando sozinho e liga junto com o computador.</p>
+<p class="m" style="margin:0 0 14px">Última conferência: ${ultimaRodada ? ultimaRodada.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'ainda não'}. Confere a cada ${intervaloAtual() / 36e5} horas; produto novo, em até 2 minutos.</p>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><form method="post" action="/agora"><button>Conferir agora</button></form>
+<form method="post" action="/sair"><button style="background:#eee">Sair da conta</button></form></div></div>`
   : `<div class="card"><b>Seu perfil</b>
 <p class="m" style="margin:4px 0 12px">Já tem conta no app? Escreva o mesmo nome e senha e toque em <b>Entrar</b>.<br>Primeira vez? Escreva seu nome, crie uma senha e toque em <b>Criar minha conta</b>.</p>
 <form method="post" action="/entrar"><input name="nome" placeholder="Seu nome" required maxlength="40" autocomplete="username"><input name="senha" type="password" placeholder="Senha (mínimo 6 letras ou números)" required minlength="6" autocomplete="current-password">
