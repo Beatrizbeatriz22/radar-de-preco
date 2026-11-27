@@ -27,7 +27,13 @@ const dadosLocal = {
   status: () => api('GET', '/api/status'),
   produtos: () => api('GET', '/api/produtos'),
   adicionarProduto: (link, precoAlvo) => api('POST', '/api/produtos', { link, precoAlvo }),
-  pesquisar: async () => { throw new Error('Nesta versão do computador, cole o link do produto. A pesquisa por nome funciona no app da internet.'); },
+  pesquisar: termo => api('POST', '/api/pesquisar', { termo }),
+  adicionarEscolhidos: async (itens, precoAlvo) => {
+    let p = await dadosLocal.adicionarProduto(itens[0].link, precoAlvo); const erros = [];
+    for (const i of itens.slice(1)) { try { p = await dadosLocal.adicionarLoja(p.id, i.link); } catch (e) { erros.push(`${i.loja}: ${e.message}`); } }
+    return { produto: p, erros };
+  },
+  acompanharParecido: async () => { throw new Error('“Algo parecido” funciona no app da internet.'); },
   adicionarLoja: (id, link) => api('POST', `/api/produtos/${id}/ofertas`, { link }),
   tirarLoja: ofertaId => api('DELETE', `/api/ofertas/${ofertaId}`),
   sugestoes: id => api('GET', `/api/produtos/${id}/sugestoes`),
@@ -406,11 +412,12 @@ $('resultados').addEventListener('click', async e => {
 });
 async function comecarPesquisa(termo) {
   const r = await dados.pesquisar(termo);
-  pesquisa = { termo, buscaId: r.buscaId, resultados: r.resultados, marcados: new Set(), esperando: true, lojasComputador: r.lojasNoComputador || [], alvo: $('addAlvo').value || null, foto: fotoLembrete };
+  pesquisa = { termo, buscaId: r.buscaId, resultados: r.resultados, marcados: new Set(), esperando: !!r.buscaId && !!(r.lojasNoComputador || []).length, lojasComputador: r.lojasNoComputador || [], alvo: $('addAlvo').value || null, foto: fotoLembrete };
   renderResultados();
   $('resultados').scrollIntoView({ behavior: 'smooth', block: 'start' });
   // O computador completa com a Kabum em alguns segundos (se estiver ligado)
   clearInterval(espiando);
+  if (!pesquisa.esperando) return;
   const inicio = Date.now(), id = r.buscaId;
   espiando = setInterval(async () => {
     if (!pesquisa || pesquisa.buscaId !== id) return clearInterval(espiando);

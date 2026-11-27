@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize } from 'node:path';
 import { db, agora } from './banco.js';
-import { acharLoja, lojasSuportadas, lojasComBusca, procurarEmOutrasLojas } from './lojas.js';
+import { acharLoja, lojasSuportadas, lojasComBusca, procurarEmOutrasLojas, pesquisarLojas, combina } from './lojas.js';
 import { montarProduto } from '../public/lib/montar.js';
 import { verificar, gravarLeitura, historicoDaOferta, ofertasDo, iniciarVerificador, intervaloAtual } from './verificador.js';
 
@@ -50,6 +50,15 @@ function criarOferta(produtoId, loja, link, lido) {
 
 const rotas = [
   ['GET', /^\/api\/status$/, () => [200, { lojas: lojasSuportadas, lojasComBusca, intervaloHoras: intervaloAtual() / 36e5 }]],
+
+  // Pesquisa por texto (na versão do computador lê todas as lojas direto daqui)
+  ['POST', /^\/api\/pesquisar$/, async req => {
+    const { termo } = await corpo(req);
+    const t = String(termo || '').trim();
+    if (t.length < 2) return [400, { erro: 'Escreva o que você quer comprar.' }];
+    const resultados = (await pesquisarLojas(t)).map((r, i) => ({ ...r, combina: combina(t, r.titulo), i })).sort((a, b) => (b.combina - a.combina) || (a.i - b.i));
+    return [200, { buscaId: null, resultados, lojasNoComputador: [] }];
+  }],
 
   ['GET', /^\/api\/produtos$/, () => [200, db.prepare('SELECT * FROM produtos WHERE usuario = ? ORDER BY criado_em DESC').all(USUARIO).map(montar)]],
 

@@ -24,3 +24,6 @@ alter table public.buscas enable row level security;
 drop policy if exists buscas_dono_le on public.buscas;
 create policy buscas_dono_le on public.buscas for select to authenticated using (usuario = (select auth.uid()));
 create index if not exists buscas_pendentes on public.buscas (computador_em, criado_em);
+
+-- Limpa contas de teste criadas pelo Claude nos testes (nome "teste-claude-...")
+delete from auth.users where email like 'teste-claude%@radardepreco.local';
