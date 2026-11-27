@@ -47,6 +47,11 @@ jobs:
           TOKEN=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | grep -o 'sbp_[A-Za-z0-9_]*' | head -1)
           if [ -z "$TOKEN" ]; then echo "O segredo SUPABASE_ACCESS_TOKEN não tem um token sbp_... válido."; exit 1; fi
           export SUPABASE_ACCESS_TOKEN="$TOKEN"
+          # Ajustes do banco (supabase/aplicar.sql pode rodar várias vezes sem problema)
+          node -e "process.stdout.write(JSON.stringify({query: require('fs').readFileSync('supabase/aplicar.sql','utf8')}))" > /tmp/sql.json
+          curl -sS --fail-with-body -X POST "https://api.supabase.com/v1/projects/neybxehhfveilnqzjbmw/database/query" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" --data @/tmp/sql.json
+          echo
           supabase functions deploy radar --project-ref neybxehhfveilnqzjbmw --no-verify-jwt --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

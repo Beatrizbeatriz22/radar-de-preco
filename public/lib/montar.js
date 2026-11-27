@@ -27,7 +27,7 @@ export function montarProduto(p, ofertas) {
   const historico = melhorSerie(lista.map(o => ({ loja: o.loja, historico: o.historico })));
   const disponiveis = lista.filter(o => o.atual != null).sort((a, b) => a.atual - b.atual);
   return {
-    id: p.id, titulo: p.titulo, foto: p.foto, ean: p.ean, precoAlvo: p.preco_alvo == null ? null : Number(p.preco_alvo), precoMin: p.preco_min == null ? null : Number(p.preco_min), criadoEm: p.criado_em,
+    id: p.id, titulo: p.titulo, foto: p.foto, fotoLembrete: p.foto_lembrete || null, modo: p.modo || 'exato', busca: p.busca || null, ean: p.ean, precoAlvo: p.preco_alvo == null ? null : Number(p.preco_alvo), precoMin: p.preco_min == null ? null : Number(p.preco_min), criadoEm: p.criado_em,
     ofertas: lista, melhorOferta: disponiveis[0]?.id ?? null,
     ultimaVerificacao: lista.map(o => o.ultimaVerificacao).filter(Boolean).sort().at(-1) || null,
     historico,

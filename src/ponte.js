@@ -1,12 +1,12 @@
-// Ponte do Radar: roda no seu computador e lê as lojas que bloqueiam a nuvem
-// (Amazon, Panvel, Kabum...). Manda os preços para a sua conta na nuvem.
+// Ponte do Radar: roda no computador e lê as lojas que bloqueiam a nuvem
+// (Amazon, Panvel, Kabum...) para todas as contas, e pesquisa na Kabum. Manda tudo para a nuvem.
 // Tela: http://localhost:3001  (lá você entra uma vez com o mesmo nome e senha do app)
 import { createServer } from 'node:http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import webpush from 'web-push';
-import { acharLoja } from './lojas.js';
+import { acharLoja, pesquisarLojas } from './lojas.js';
 import { intervaloAtual } from '../public/lib/analise.js';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -66,25 +66,40 @@ async function nuvem(caminho, opcoes = {}) {
 }
 const funcao = (acao, dados) => nuvem('/functions/v1/radar', { method: 'POST', body: JSON.stringify({ acao, ...dados }) });
 
-async function notificar(avisos) {
+// inscricoes: de outra pessoa (a nuvem manda junto quando o produto é dela); sem isso, as da própria conta.
+async function notificar(avisos, inscricoes = null) {
   if (!temPush || !avisos?.length) return;
-  const inscricoes = await nuvem('/rest/v1/inscricoes_push?select=id,endpoint,chaves');
+  const proprias = !inscricoes?.length;
+  if (proprias) inscricoes = await nuvem('/rest/v1/inscricoes_push?select=id,endpoint,chaves');
   for (const a of avisos) for (const i of inscricoes) {
     try { await webpush.sendNotification({ endpoint: i.endpoint, keys: i.chaves }, JSON.stringify({ titulo: a.titulo, texto: a.texto, produtoId: a.produtoId })); }
-    catch (e) { if (e.statusCode === 404 || e.statusCode === 410) await nuvem(`/rest/v1/inscricoes_push?id=eq.${i.id}`, { method: 'DELETE' }).catch(() => {}); }
+    catch (e) { if (proprias && (e.statusCode === 404 || e.statusCode === 410)) await nuvem(`/rest/v1/inscricoes_push?id=eq.${i.id}`, { method: 'DELETE' }).catch(() => {}); }
   }
 }
 
 const espera = ms => new Promise(r => setTimeout(r, ms));
 let rodando = false, ultimaRodada = null;
 // todas = true: lê tudo agora ("Conferir agora"); senão, só o que venceu ou é novo.
+const real = v => `R$ ${Number(v).toFixed(2).replace('.', ',')}`;
 async function rodada(todas = false) {
   if (rodando || !sessao) return;
   rodando = true;
   try {
-    const ofertas = await nuvem('/rest/v1/ofertas?so_computador=eq.true&select=id,link,loja,ultima_verificacao&order=ultima_verificacao.asc.nullsfirst');
+    // A nuvem diz o que falta: lojas para ler, pesquisas da Kabum e produtos "parecido" (de todas as contas)
+    const t = await funcao('ponteTarefas', {});
+    await atenderBuscas(t.buscas, t.lojas);
     const limite = Date.now() - intervaloAtual() + 5 * 60e3;
-    const pendentes = todas ? ofertas : ofertas.filter(o => !o.ultima_verificacao || new Date(o.ultima_verificacao).getTime() < limite);
+    const vencido = d => todas || !d || new Date(d).getTime() < limite;
+    for (const p of t.parecidos.filter(x => vencido(x.buscado_computador_em))) {
+      try {
+        const achados = await pesquisarLojas(p.busca || p.titulo, { so: t.lojas, n: 10 });
+        const r = await funcao('resultadoParecidoComputador', { produtoId: p.id, resultados: achados });
+        anotar(`Parecido "${p.busca}": ${achados.length} resultados na ${t.lojas.join('/')}`);
+        await notificar(r.avisos, r.inscricoes);
+      } catch (e) { anotar(`Parecido "${p.busca}": não deu (${e.message})`); }
+      await espera(4000 + Math.random() * 6000);
+    }
+    const pendentes = t.ofertas.filter(o => vencido(o.ultima_verificacao));
     for (const [i, o] of pendentes.entries()) {
       if (i) await espera(5000 + Math.random() * 10000); // calma entre uma leitura e outra
       const loja = acharLoja(o.link);
@@ -92,8 +107,8 @@ async function rodada(todas = false) {
         if (!loja) throw new Error('Loja não suportada.');
         const lido = await loja.ler(o.link);
         const r = await funcao('registrarLeituraComputador', { ofertaId: o.id, lido });
-        anotar(`${o.loja}: ${lido.preco != null ? `R$ ${lido.preco.toFixed(2).replace('.', ',')}` : 'sem preço / indisponível'} — ${String(lido.titulo || '').slice(0, 60)}`);
-        await notificar(r.avisos);
+        anotar(`${o.loja}: ${lido.preco != null ? real(lido.preco) : 'sem preço / indisponível'} — ${String(lido.titulo || '').slice(0, 60)}`);
+        await notificar(r.avisos, r.inscricoes);
       } catch (e) {
         anotar(`${o.loja}: não deu para ler (${e.message})`);
         await funcao('erroLeituraComputador', { ofertaId: o.id, mensagem: e.message }).catch(() => {});
@@ -103,6 +118,24 @@ async function rodada(todas = false) {
   } catch (e) {
     anotar(`Erro ao falar com a nuvem: ${e.message}`);
   } finally { rodando = false; }
+}
+
+// Pesquisas que alguém está fazendo agora no app: o computador completa com a Kabum (rápido, a pessoa está esperando)
+async function atenderBuscas(buscas, lojas) {
+  for (const b of buscas || []) {
+    try {
+      const achados = await pesquisarLojas(b.termo, { so: lojas, n: 6 });
+      await funcao('resultadoBuscaComputador', { buscaId: b.id, resultados: achados });
+      anotar(`Pesquisa "${b.termo}": ${achados.length} na ${lojas.join('/')}`);
+    } catch (e) { anotar(`Pesquisa "${b.termo}": não deu (${e.message})`); await funcao('resultadoBuscaComputador', { buscaId: b.id, resultados: [] }).catch(() => {}); }
+  }
+}
+let olhandoBuscas = false;
+async function olharBuscas() {
+  if (olhandoBuscas || !sessao) return;
+  olhandoBuscas = true;
+  try { const t = await funcao('ponteTarefas', {}); await atenderBuscas(t.buscas, t.lojas); if (!rodando && t.ofertas.some(o => !o.ultima_verificacao)) rodada(); }
+  catch {} finally { olhandoBuscas = false; }
 }
 
 // ---- Tela simples (só neste computador) ----
@@ -185,5 +218,6 @@ createServer(async (req, res) => {
 }).listen(PORTA, '127.0.0.1', () => {
   console.log(`Ponte do Radar rodando. Tela: http://localhost:${PORTA}`);
   rodada();
-  setInterval(rodada, 2 * 60e3); // a cada 2 min vê se tem loja vencida ou produto novo
+  setInterval(rodada, 5 * 60e3); // a cada 5 min vê se tem loja vencida
+  setInterval(olharBuscas, 15e3); // a cada 15 s: pesquisas no app esperando e produtos novos
 });

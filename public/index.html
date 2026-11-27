@@ -33,15 +33,21 @@
 <main class="shell" id="shell" data-view="list">
   <section class="list-pane" aria-label="Produtos acompanhados">
     <form class="add" id="addForm">
-      <label class="eyebrow" for="addLink">Adicionar produto</label>
-      <input id="addLink" type="url" required placeholder="Cole o link do produto">
+      <label class="eyebrow" for="addLink">O que você quer comprar?</label>
+      <input id="addLink" type="text" required autocomplete="off" enterkeyhint="search" placeholder="Ex.: PS5 Slim, papete feminina… ou cole o link">
       <div class="add-row">
-        <input id="addAlvo" type="number" min="0" step="0.01" placeholder="Quero pagar até R$ (opcional)" aria-label="Quero pagar até">
-        <button class="btn primary" id="addBtn" type="submit">Adicionar</button>
+        <input id="addAlvo" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Quero pagar até R$ (opcional)" aria-label="Quero pagar até">
+        <button class="btn primary" id="addBtn" type="submit">Procurar</button>
+      </div>
+      <div class="add-foto">
+        <label class="link-btn" for="addFoto" id="addFotoTxt">📷 Pôr uma foto de lembrete (opcional)</label>
+        <input id="addFoto" type="file" accept="image/*" hidden>
+        <span id="addFotoPrev"></span>
       </div>
       <p class="erro" id="addErro" hidden></p>
       <p class="muted small" id="lojasLista" style="margin:0"></p>
     </form>
+    <section class="resultados" id="resultados" hidden aria-live="polite"></section>
     <div class="list-head"><span class="eyebrow" id="count"></span></div>
     <div class="items" id="items"></div>
   </section>

@@ -114,6 +114,19 @@ function lojaVtex(nome, dominio, host = `www.${dominio}`) {
       }
       return [];
     },
+    // Pesquisa por texto livre ("ps5 slim", "papete feminina"): devolve os primeiros produtos da loja.
+    async pesquisar(termo, n = 6) {
+      const r = await fetch(`https://${host}/api/catalog_system/pub/products/search?ft=${encodeURIComponent(termo)}&_from=0&_to=${n - 1}`, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(20000) });
+      if (!r.ok) throw new Error(`código ${r.status}`);
+      const lista = await r.json().catch(() => []);
+      return lista.map(p => {
+        const item = p.items?.find(i => i.sellers?.some(s => s.commertialOffer?.Price > 0)) || p.items?.[0];
+        const venda = item?.sellers?.find(s => s.sellerDefault && s.commertialOffer?.Price > 0) || item?.sellers?.find(s => s.commertialOffer?.Price > 0);
+        const of = venda?.commertialOffer;
+        return { loja: nome, link: `https://${host}/${p.linkText}/p`, titulo: limpar(p.productName), preco: of?.Price > 0 ? of.Price : null, foto: item?.images?.[0]?.imageUrl || null, ean: item?.ean || null,
+          vendedor: venda?.sellerName && !/^1$|^vtex/i.test(venda.sellerId) ? venda.sellerName : nome };
+      }).filter(a => a.preco);
+    },
   };
 }
 
@@ -179,6 +192,20 @@ const lojas = {
       }
       return [];
     },
+    async pesquisar(termo, n = 6) {
+      const html = await baixar(`https://www.amazon.com.br/s?k=${encodeURIComponent(termo)}`);
+      const achados = [];
+      for (const bloco of html.split('data-asin="').slice(1)) {
+        const asin = bloco.slice(0, 10);
+        if (!/^[A-Z0-9]{10}$/.test(asin) || /Patrocinado|sp_atf|AdHolder/.test(bloco.slice(0, 3000))) continue;
+        const t = limpar((bloco.match(/<h2[^>]*>[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>/) || [])[1]);
+        const p = (bloco.match(/class="a-offscreen">\s*(R\$[^<]+)</) || [])[1];
+        const f = (bloco.match(/class="s-image"[^>]*src="([^"]+)"/) || [])[1];
+        if (t && p && !achados.some(a => a.link.endsWith(asin))) achados.push({ loja: 'Amazon', link: `https://www.amazon.com.br/dp/${asin}`, titulo: t, preco: paraNumero(p), foto: f || null, ean: null, vendedor: null });
+        if (achados.length >= n) break;
+      }
+      return achados;
+    },
   },
 
   kabum: {
@@ -200,6 +227,17 @@ const lojas = {
       if (!titulo) titulo = limpar((html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/) || [])[1]);
       if (!titulo) throw new Error('Não consegui ler o nome do produto nessa página.');
       return { loja: 'Kabum', titulo: limpar(titulo), preco, precoPix, foto: foto || null, vendedor: 'Kabum', disponivel, ean: eanDe(ld) };
+    },
+    async pesquisar(termo, n = 6) {
+      const html = await baixar(`https://www.kabum.com.br/busca/${encodeURIComponent(termo.trim().replace(/\s+/g, '-'))}`);
+      const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+      if (!m) return [];
+      let dados = JSON.parse(m[1]).props?.pageProps?.data;
+      if (typeof dados === 'string') dados = JSON.parse(dados);
+      return (dados?.catalogServer?.data || []).filter(x => x.available && x.price > 0).slice(0, n).map(x => ({
+        loja: 'Kabum', link: `https://www.kabum.com.br/produto/${x.code}/${x.friendlyName}`, titulo: limpar(x.name), preco: x.price,
+        foto: x.image || x.images?.[0] || null, ean: null, vendedor: x.sellerName || 'Kabum',
+      }));
     },
   },
 };
@@ -243,3 +281,32 @@ export function semelhanca(a, b) {
 }
 
 export const lojasComBusca = Object.values(lojas).filter(l => l.buscar).map(l => l.nome);
+
+// Lojas que bloqueiam a nuvem: quem pesquisa nelas é o computador (ponte).
+export const PESQUISA_NO_COMPUTADOR = ['Kabum'];
+export const lojasComPesquisa = Object.values(lojas).filter(l => l.pesquisar).map(l => l.nome);
+
+// Pesquisa por texto em várias lojas ao mesmo tempo. so: só essas lojas; sem: menos essas.
+export async function pesquisarLojas(termo, { so = null, sem = [], n = 6 } = {}) {
+  const alvo = Object.values(lojas).filter(l => l.pesquisar && (!so || so.includes(l.nome)) && !sem.includes(l.nome));
+  const listas = await Promise.all(alvo.map(l => l.pesquisar(termo, n).catch(() => [])));
+  return listas.flat();
+}
+
+// O resultado tem a ver com o que a pessoa escreveu? (pelo menos ~60% das palavras)
+export function combina(termo, titulo) {
+  const T = [...palavras(termo)], B = palavras(titulo);
+  if (!T.length) return false;
+  return T.filter(w => B.has(w) || [...B].some(b => b.startsWith(w) && w.length >= 4)).length >= Math.ceil(T.length * 0.6);
+}
+
+// Links curtos (a.co, amzn.to...) e texto colado com o link no meio: devolve o link de verdade.
+export async function resolverLink(texto) {
+  const m = String(texto || '').match(/https?:\/\/[^\s"'<>]+/);
+  if (!m) return null;
+  let url = m[0].replace(/[),.;!]+$/, '');
+  if (/^https?:\/\/(a\.co|amzn\.to|amzn\.eu|bit\.ly|tinyurl\.com|shre\.ink|mercadolivre\.com\/sec)\//i.test(url)) {
+    try { const r = await fetch(url, { method: 'GET', redirect: 'follow', headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15000) }); url = r.url || url; } catch {}
+  }
+  return url;
+}

@@ -2,7 +2,7 @@
 // Confere as lojas que passaram da hora, grava os preços no Supabase e manda notificação no celular.
 // Precisa das variáveis: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VAPID_PUBLICA, VAPID_PRIVADA, VAPID_CONTATO
 import webpush from 'web-push';
-import { criarBanco, verificarOferta } from '../src/nuvem.js';
+import { criarBanco, verificarOferta, verificarParecido } from '../src/nuvem.js';
 import { intervaloAtual } from '../public/lib/analise.js';
 
 const env = n => { const v = process.env[n]; if (!v) { console.error(`Falta a variável ${n}.`); process.exit(1); } return v; };
@@ -20,7 +20,7 @@ const inicio = Date.now();
 const espera = ms => new Promise(r => setTimeout(r, ms));
 
 const limite = new Date(Date.now() - intervaloAtual() + 5 * 60 * 1000).toISOString(); // 5 min de folga
-const pendentes = await db.ler('ofertas', `so_computador=is.false&or=(ultima_verificacao.is.null,ultima_verificacao.lt.${limite})&order=ultima_verificacao.asc.nullsfirst&limit=300`);
+const pendentes = await db.ler('ofertas', `so_computador=is.false&da_busca=is.false&or=(ultima_verificacao.is.null,ultima_verificacao.lt.${limite})&order=ultima_verificacao.asc.nullsfirst&limit=300`);
 console.log(`${pendentes.length} leituras para fazer (intervalo: ${intervaloAtual() / 36e5} h)`);
 
 let ok = 0, falhas = 0, avisos = [];
@@ -35,6 +35,16 @@ for (const o of pendentes) {
     console.log(`✘ ${o.loja}: ${e.message}`);
   }
   await espera(3000 + Math.random() * 5000); // calma entre leituras, para não ser bloqueado
+}
+
+// Produtos "aceito algo parecido": pesquisa de novo e acompanha o mais barato de cada loja
+const parecidos = await db.ler('produtos', `modo=eq.parecido&or=(buscado_em.is.null,buscado_em.lt.${limite})&order=buscado_em.asc.nullsfirst&limit=100`);
+console.log(`${parecidos.length} pesquisas de "parecido" para fazer`);
+for (const p of parecidos) {
+  if (Date.now() - inicio > LIMITE_MS) break;
+  try { const r = await verificarParecido(db, p); avisos.push(...r.avisos); ok++; console.log(`✔ parecido: ${p.busca} (${r.lojas.join(', ') || 'nada encontrado'})`); }
+  catch (e) { falhas++; console.log(`✘ parecido ${p.busca}: ${e.message}`); }
+  await espera(3000 + Math.random() * 5000);
 }
 
 let enviados = 0;

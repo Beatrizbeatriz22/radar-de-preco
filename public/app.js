@@ -27,6 +27,7 @@ const dadosLocal = {
   status: () => api('GET', '/api/status'),
   produtos: () => api('GET', '/api/produtos'),
   adicionarProduto: (link, precoAlvo) => api('POST', '/api/produtos', { link, precoAlvo }),
+  pesquisar: async () => { throw new Error('Nesta versão do computador, cole o link do produto. A pesquisa por nome funciona no app da internet.'); },
   adicionarLoja: (id, link) => api('POST', `/api/produtos/${id}/ofertas`, { link }),
   tirarLoja: ofertaId => api('DELETE', `/api/ofertas/${ofertaId}`),
   sugestoes: id => api('GET', `/api/produtos/${id}/sugestoes`),
@@ -57,7 +58,14 @@ const umProduto = async id => (await produtosNuvem()).find(p => p.id === id);
 const dadosNuvem = {
   status: async () => ({ lojas: LOJAS, lojasComBusca: LOJAS_COM_BUSCA, intervaloHoras: intervaloAtual() / 36e5 }),
   produtos: produtosNuvem,
-  adicionarProduto: async (link, precoAlvo) => umProduto((await funcao('adicionarProduto', { link, precoAlvo })).produtoId),
+  adicionarProduto: async (link, precoAlvo, fotoLembrete) => {
+    const r = await funcao('adicionarProduto', { link, precoAlvo, fotoLembrete });
+    return Object.assign(await umProduto(r.produtoId), { jaExistia: !!r.jaExistia });
+  },
+  pesquisar: termo => funcao('pesquisar', { termo }),
+  lerBusca: async id => { const { data, error } = await sb.from('buscas').select('resultados, computador_em').eq('id', id).single(); falhou(error); return data; },
+  adicionarEscolhidos: async (itens, precoAlvo, fotoLembrete) => { const r = await funcao('adicionarEscolhidos', { itens, precoAlvo, fotoLembrete }); return { produto: await umProduto(r.produtoId), erros: r.erros }; },
+  acompanharParecido: async (termo, precoAlvo, fotoLembrete) => { const r = await funcao('acompanharParecido', { termo, precoAlvo, fotoLembrete }); return { produto: await umProduto(r.produtoId), lojas: r.lojas }; },
   adicionarLoja: async (id, link) => { await funcao('adicionarLoja', { produtoId: id, link }); return umProduto(id); },
   tirarLoja: async ofertaId => {
     const p = state.produtos.find(x => x.ofertas.some(o => o.id === ofertaId));
@@ -99,16 +107,17 @@ function variacao(p) {
 function renderLista() {
   $('count').textContent = state.produtos.length ? `Acompanhando · ${state.produtos.length} ${state.produtos.length === 1 ? 'produto' : 'produtos'}` : '';
   if (!state.produtos.length) {
-    $('items').innerHTML = '<div class="empty">Nenhum produto ainda.<br>Cole acima o link de um produto de uma das lojas da lista para começar.</div>';
+    $('items').innerHTML = '<div class="empty">Nenhum produto ainda.<br>Escreva acima o que você quer comprar (ou cole o link) para começar.</div>';
     return;
   }
   $('items').innerHTML = state.produtos.map(p => {
-    const m = melhor(p), n = p.ofertas.length, erro = p.ofertas.some(o => o.ultimoErro);
+    const m = melhor(p), n = p.ofertas.length, erro = p.ofertas.some(o => o.ultimoErro && !(o.soComputador && /não deixa a nuvem/.test(o.ultimoErro)));
+    const esperando = p.ofertas.some(o => o.soComputador && !o.historico.length);
     return `
     <button class="item" type="button" data-id="${p.id}" aria-current="${p.id === state.sel}">
-      <div class="thumb">${img(p.foto)}</div>
+      <div class="thumb">${img(p.fotoLembrete || p.foto)}</div>
       <div style="min-width:0"><div class="item-name">${esc(p.titulo)}</div>
-        <div class="item-sub">${n} ${n === 1 ? 'loja' : 'lojas'}${m && n > 1 ? ` · melhor na ${esc(m.loja)}` : n === 1 ? ` · ${esc(p.ofertas[0].loja)}` : ''}${erro ? ' · <span style="color:var(--bad)">erro em alguma loja</span>' : ''}</div>
+        <div class="item-sub">${n} ${n === 1 ? 'loja' : 'lojas'}${m && n > 1 ? ` · melhor na ${esc(m.loja)}` : n === 1 ? ` · ${esc(p.ofertas[0].loja)}` : ''}${p.modo === 'parecido' ? ' · algo parecido' : ''}${esperando ? ' · 💻 esperando o computador' : ''}${erro ? ' · <span style="color:var(--bad)">erro em alguma loja</span>' : ''}</div>
         <span class="pill ${p.analise.tipo}"><span class="dot"></span>${esc(p.analise.curto)}</span></div>
       <div class="item-price"><span class="num">${brl(m?.atual)}</span>${variacao(p)}</div>
     </button>`;
@@ -132,8 +141,8 @@ function renderDetalhe() {
   <article class="detail">
     <button class="back" type="button" id="back">← Voltar à lista</button>
     <div class="d-head">
-      <div class="d-title"><div class="photo">${img(p.foto)}</div>
-        <div style="min-width:0"><span class="eyebrow">${p.ofertas.length} ${p.ofertas.length === 1 ? 'loja' : 'lojas'}${p.ean ? ` · código de barras ${esc(p.ean)}` : ''}</span>
+      <div class="d-title"><div class="photo">${img(p.fotoLembrete || p.foto)}</div>
+        <div style="min-width:0"><span class="eyebrow">${p.modo === 'parecido' ? `Algo parecido · ${p.ofertas.length} ${p.ofertas.length === 1 ? 'loja' : 'lojas'}` : `${p.ofertas.length} ${p.ofertas.length === 1 ? 'loja' : 'lojas'}`}${p.ean ? ` · código de barras ${esc(p.ean)}` : ''}</span>
           <h2>${esc(p.titulo)}</h2>
           <div class="updated"><span>Conferido ${ha(p.ultimaVerificacao)} · próxima ${proxima(p.ultimaVerificacao)}</span>
             <button type="button" class="link-btn" id="refresh">Atualizar agora</button></div>
@@ -141,6 +150,8 @@ function renderDetalhe() {
       <div style="text-align:right"><span class="eyebrow">Melhor preço agora</span><div class="num" style="font-size:26px;font-weight:600">${brl(m?.atual)}</div>
         ${m ? `<div class="muted small">na ${esc(m.loja)}${m.pix && m.pix < m.atual ? ` · ${brl(m.pix)} no Pix` : ''}</div>` : ''}</div>
     </div>
+    ${p.modo === 'parecido' ? `<p class="small parecido-info">🔎 Você pediu <strong>algo parecido com “${esc(p.busca)}”</strong>. A cada conferência o app procura de novo e mostra o mais barato de cada loja, mesmo que seja outro modelo. Toque em “Ver ↗” para conferir antes de comprar.</p>` : ''}
+    ${p.fotoLembrete && p.foto ? `<p class="muted small" style="margin:-6px 0 0">A foto acima é o seu lembrete.</p>` : ''}
     <div class="verdict ${a.tipo}"><div class="v-icon">${icon}</div><strong>${esc(a.titulo)}</strong><span>${esc(a.texto)}</span></div>
     ${a.atual != null ? `<div class="stats">
       <div class="stat"><span class="eyebrow">Menor visto</span><span class="num">${brl(a.menor)}</span></div>
@@ -155,7 +166,7 @@ function renderDetalhe() {
           <tr class="${o.id === p.melhorOferta && p.ofertas.length > 1 ? 'best' : ''}">
             <td><span class="sw" style="background:${cor(o)}"></span><strong>${esc(o.loja)}</strong>${o.id === p.melhorOferta && p.ofertas.length > 1 ? ' <span class="pill bom">Melhor preço</span>' : ''}
               <div class="muted small">${esc(o.titulo || '')}</div>
-              ${o.soComputador ? `<div class="muted small">💻 ${o.historico.length ? 'Preço lido pelo seu computador' : 'Esperando o Radar do computador ler esta loja'}</div>` : ''}
+              ${o.soComputador ? `<div class="muted small">💻 ${o.historico.length ? 'Preço lido pelo Radar no computador' : 'Esperando o Radar no computador ler esta loja (precisa estar ligado)'}</div>` : ''}
               ${o.ultimoErro && !(o.soComputador && /não deixa a nuvem/.test(o.ultimoErro)) ? `<div class="erro-mini">Última leitura falhou: ${esc(o.ultimoErro)}</div>` : ''}</td>
             <td><span class="pill ${o.confianca.nivel}"><span class="dot"></span>${o.confianca.nivel === 'bom' ? 'Loja oficial' : 'Atenção'}</span><div class="muted small" style="max-width:30ch">${esc(o.confianca.texto)}</div></td>
             <td class="price muted">${brl(o.menor)}</td>
@@ -163,7 +174,7 @@ function renderDetalhe() {
             <td class="acoes"><a class="link-btn" href="${esc(o.link)}" target="_blank" rel="noopener">Ver ↗</a>${p.ofertas.length > 1 ? `<button class="x" type="button" data-tirar="${o.id}" aria-label="Tirar ${esc(o.loja)} deste produto" title="Tirar esta loja">×</button>` : ''}</td>
           </tr>`).join('')}</tbody>
       </table></div>
-      <div class="add-loja">
+      <div class="add-loja" ${p.modo === 'parecido' ? 'hidden' : ''}>
         <form class="field" id="formLoja"><input id="linkLoja" type="url" required placeholder="Cole o link do mesmo produto em outra loja" aria-label="Link do produto em outra loja" style="flex:1;min-width:220px;width:auto;font-family:var(--f-body)"><button class="btn" type="submit" id="btnLoja">Adicionar loja</button></form>
         <button class="btn primary" type="button" id="procurar" ${state.buscando ? 'disabled' : ''}>${state.buscando ? 'Procurando nas lojas…' : 'Procurar em outras lojas'}</button>
         <p class="erro" id="erroLoja" hidden></p>
@@ -321,20 +332,114 @@ async function procurarSugestoes(id, automatico = false) {
 function trocar(p) { state.produtos = state.produtos.map(x => x.id === p.id ? p : x); renderLista(); renderDetalhe(); }
 
 /* ---------- Adicionar produto ---------- */
+const ehLink = t => /https?:\/\/|www\.|\.com(\.br)?\//i.test(t);
+$('addLink').addEventListener('input', () => { $('addBtn').textContent = ehLink($('addLink').value) ? 'Adicionar' : 'Procurar'; });
+
+// Foto de lembrete: reduz no próprio aparelho (até 480 px) para ficar leve
+let fotoLembrete = null;
+$('addFoto').addEventListener('change', async () => {
+  const f = $('addFoto').files[0]; if (!f) return;
+  try {
+    const bmp = await createImageBitmap(f);
+    const k = Math.min(1, 480 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    fotoLembrete = c.toDataURL('image/jpeg', 0.72);
+    $('addFotoPrev').innerHTML = `<img src="${fotoLembrete}" alt="Sua foto"> <button type="button" class="link-btn" id="tirarFoto">tirar</button>`;
+    $('addFotoTxt').textContent = '📷 Trocar foto';
+  } catch { aviso('Não deu para usar essa foto', 'Tente outra imagem.'); }
+});
+$('addFotoPrev').addEventListener('click', e => { if (e.target.id === 'tirarFoto') limparFoto(); });
+function limparFoto() { fotoLembrete = null; $('addFoto').value = ''; $('addFotoPrev').innerHTML = ''; $('addFotoTxt').textContent = '📷 Pôr uma foto de lembrete (opcional)'; }
+function limparForm() { $('addLink').value = ''; $('addAlvo').value = ''; $('addBtn').textContent = 'Procurar'; limparFoto(); }
+function abrirProduto(p) {
+  state.produtos = [p, ...state.produtos.filter(x => x.id !== p.id)]; state.sel = p.id; state.sugestoes = null;
+  renderLista(); renderDetalhe(); $('shell').dataset.view = 'detail'; window.scrollTo({ top: 0 });
+}
+
+/* ---------- Resultados da pesquisa por texto ---------- */
+let pesquisa = null, espiando = null;
+function renderResultados() {
+  const box = $('resultados');
+  if (!pesquisa) { box.hidden = true; box.innerHTML = ''; return; }
+  const r = pesquisa.resultados, bons = r.filter(x => x.combina), outros = r.filter(x => !x.combina);
+  const card = x => { const i = r.indexOf(x); return `
+    <button type="button" class="res ${pesquisa.marcados.has(i) ? 'marcado' : ''}" data-res="${i}" aria-pressed="${pesquisa.marcados.has(i)}">
+      <span class="res-foto">${img(x.foto)}</span>
+      <span class="res-txt"><strong>${esc(x.loja)}</strong> · <span class="num">${brl(x.preco)}</span><span class="res-nome">${esc(x.titulo)}</span></span>
+      <span class="res-check">${pesquisa.marcados.has(i) ? '✓' : '+'}</span>
+    </button>`; };
+  const n = pesquisa.marcados.size;
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="section-h"><h3>Achei para “${esc(pesquisa.termo)}”</h3><button type="button" class="link-btn" id="resFechar">fechar</button></div>
+    ${r.length ? `<p class="muted small" style="margin:0 0 8px">Toque nos que são o que você quer (pode marcar de lojas diferentes para comparar).</p>` : ''}
+    <div class="res-lista">${bons.map(card).join('')}</div>
+    ${outros.length ? `<details class="res-outros"><summary>Ver outros resultados (${outros.length})</summary><div class="res-lista">${outros.map(card).join('')}</div></details>` : ''}
+    ${pesquisa.esperando ? `<p class="muted small">⏳ Procurando também na ${esc(pesquisa.lojasComputador.join(', '))} pelo Radar no computador…</p>` : ''}
+    ${!r.length && !pesquisa.esperando ? `<p class="small">Não achei nada com esse nome nas lojas que o app lê. Tente escrever de outro jeito, ou cole o link do produto.</p>` : ''}
+    <div class="res-acoes">
+      <button type="button" class="btn primary" id="resAcompanhar" ${n ? '' : 'disabled'}>${n ? `Acompanhar ${n === 1 ? 'este' : `estes ${n}`}` : 'Marque o que você quer'}</button>
+      <button type="button" class="btn" id="resParecido">Aceito algo parecido: me avise do mais barato</button>
+    </div>`;
+}
+$('resultados').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b || !pesquisa) return;
+  if (b.id === 'resFechar') { pesquisa = null; clearInterval(espiando); renderResultados(); return; }
+  if (b.dataset.res !== undefined) { const i = Number(b.dataset.res); pesquisa.marcados.has(i) ? pesquisa.marcados.delete(i) : pesquisa.marcados.add(i); renderResultados(); return; }
+  if (b.id === 'resAcompanhar' || b.id === 'resParecido') {
+    b.disabled = true; b.textContent = 'Salvando…';
+    try {
+      if (b.id === 'resAcompanhar') {
+        const itens = [...pesquisa.marcados].map(i => pesquisa.resultados[i]);
+        const { produto, erros } = await dados.adicionarEscolhidos(itens, pesquisa.alvo, pesquisa.foto);
+        abrirProduto(produto);
+        aviso('Produto adicionado', erros.length ? `Algumas lojas não entraram: ${erros.join(' · ')}` : `Acompanhando em ${produto.ofertas.length} ${produto.ofertas.length === 1 ? 'loja' : 'lojas'}.`);
+      } else {
+        const { produto, lojas } = await dados.acompanharParecido(pesquisa.termo, pesquisa.alvo, pesquisa.foto);
+        abrirProduto(produto);
+        aviso('Combinado!', lojas.length ? `Vou acompanhar o mais barato parecido com “${pesquisa.termo}” em ${lojas.length} ${lojas.length === 1 ? 'loja' : 'lojas'}.` : `Ainda não achei nada parecido, mas vou continuar procurando a cada conferência.`);
+      }
+      pesquisa = null; clearInterval(espiando); renderResultados(); limparForm();
+    } catch (err) { aviso('Não deu para salvar', err.message); renderResultados(); }
+  }
+});
+async function comecarPesquisa(termo) {
+  const r = await dados.pesquisar(termo);
+  pesquisa = { termo, buscaId: r.buscaId, resultados: r.resultados, marcados: new Set(), esperando: true, lojasComputador: r.lojasNoComputador || [], alvo: $('addAlvo').value || null, foto: fotoLembrete };
+  renderResultados();
+  $('resultados').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // O computador completa com a Kabum em alguns segundos (se estiver ligado)
+  clearInterval(espiando);
+  const inicio = Date.now(), id = r.buscaId;
+  espiando = setInterval(async () => {
+    if (!pesquisa || pesquisa.buscaId !== id) return clearInterval(espiando);
+    try {
+      const b = await dados.lerBusca(id);
+      if (b.resultados.length !== pesquisa.resultados.length) pesquisa.resultados = b.resultados;
+      if (b.computador_em || Date.now() - inicio > 75e3) { pesquisa.esperando = false; clearInterval(espiando); }
+      renderResultados();
+    } catch {}
+  }, 4000);
+}
+
 $('addForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const btn = $('addBtn'); btn.disabled = true; btn.textContent = 'Lendo a página…'; $('addErro').hidden = true;
+  const texto = $('addLink').value.trim();
+  const btn = $('addBtn'); btn.disabled = true; btn.textContent = ehLink(texto) ? 'Lendo a página…' : 'Procurando…'; $('addErro').hidden = true;
   try {
-    const p = await dados.adicionarProduto($('addLink').value, $('addAlvo').value || null);
-    state.produtos.unshift(p); state.sel = p.id; state.sugestoes = null; $('addLink').value = ''; $('addAlvo').value = '';
-    renderLista(); renderDetalhe(); $('shell').dataset.view = 'detail';
-    if (p.ofertas[0].soComputador) aviso('Produto adicionado', `A ${p.ofertas[0].loja} não deixa a nuvem ler. O nome e o preço aparecem quando o Radar do seu computador ler (em até 2 minutos, com o computador ligado).`);
+    if (!ehLink(texto)) { await comecarPesquisa(texto); return; }
+    const p = await dados.adicionarProduto(texto, $('addAlvo').value || null, fotoLembrete);
+    limparForm();
+    abrirProduto(p);
+    if (p.jaExistia) { aviso('Você já acompanha esse produto', 'Abri ele para você.'); return; }
+    if (p.ofertas[0].soComputador) aviso('Produto adicionado', `A ${p.ofertas[0].loja} não deixa a nuvem ler. O nome e o preço aparecem quando o Radar no computador ler (em instantes, se o computador estiver ligado).`);
     else {
       aviso('Produto adicionado', `${brl(melhor(p)?.atual)} na ${p.ofertas[0].loja}. Procurando nas outras lojas…`);
       procurarSugestoes(p.id, true);
     }
   } catch (err) { $('addErro').textContent = err.message; $('addErro').hidden = false; }
-  finally { btn.disabled = false; btn.textContent = 'Adicionar'; }
+  finally { btn.disabled = false; btn.textContent = ehLink($('addLink').value) ? 'Adicionar' : 'Procurar'; }
 });
 
 /* ---------- Avisos ---------- */
@@ -355,10 +460,20 @@ async function atualizarBotaoAvisos() {
   }
   const ligado = NUVEM ? pushLigado : s === 'granted';
   $('btnAvisosTxt').textContent = ligado ? 'Avisos ligados' : s === 'denied' ? 'Avisos bloqueados no navegador' : 'Ativar avisos';
-  $('btnAvisos').disabled = ligado || s === 'denied';
+  $('btnAvisos').disabled = s === 'denied';
+  $('btnAvisos').title = ligado ? 'Toque para receber um aviso de teste' : '';
 }
 const base64ParaBytes = b => { const p = '='.repeat((4 - b.length % 4) % 4); const r = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...r].map(c => c.charCodeAt(0))); };
 $('btnAvisos').addEventListener('click', async () => {
+  // Já ligado: manda um aviso de teste para a pessoa ver como chega
+  if ((NUVEM ? pushLigado : 'Notification' in window && Notification.permission === 'granted')) {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      await reg.showNotification('Teste do Radar 🎀', { body: 'Os avisos estão ligados neste aparelho. Quando um produto chegar no seu preço, chega assim.', icon: 'icone.svg' });
+      aviso('Aviso de teste enviado', 'Olhe a barra de notificações. Os avisos de verdade chegam quando o preço baixa, chega na sua faixa ou bate o menor preço.');
+    } catch { aviso('Avisos ligados', 'Os avisos chegam quando o preço baixa, chega na sua faixa ou bate o menor preço.'); }
+    return;
+  }
   if (!('Notification' in window)) {
     return aviso('Avisos não disponíveis aqui', ehIphone && !instalado ? 'No iPhone, toque em Compartilhar → “Adicionar à Tela de Início” e abra o Radar por lá.' : 'Este navegador não mostra notificações.');
   }
